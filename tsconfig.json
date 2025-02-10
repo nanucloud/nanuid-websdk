@@ -1,11 +1,13 @@
 {
   "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES6",
+    "strict": true,
     "esModuleInterop": true,
     "outDir": "dist",
-    "module": "CommonJS",
-    "target": "ES6",
-    "declaration": true,
-    "strict": true,
+    "rootDir": "./src",
+    "skipLibCheck": true,
     "typeRoots": ["./node_modules/@types", "src/types"]
   },
   "include": ["src"]
