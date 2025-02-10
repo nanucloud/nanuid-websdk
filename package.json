@@ -1,0 +1,33 @@
+{
+  "name": "nanuid-websdk",
+  "version": "1.9.4",
+  "description": "NANU.ID WEB AUTH SDK (SW Development Kit) for WEBJS/TS",
+  "keywords": [
+    "nanuid"
+  ],
+  "homepage": "https://id.nanu.cc",
+  "bugs": {
+    "url": "https://github.com/nanucloud/nanuid-websdk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nanucloud/nanuid-websdk.git"
+  },
+  "license": "MIT",
+  "author": "NANU Cloud Platform",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "js-cookie": "^3.0.5"
+  },
+  "devDependencies": {
+    "@types/js-cookie": "^3.0.6",
+    "@types/node": "^22.13.1",
+    "typescript": "^5.7.3"
+  },
+  "types": "index.d.ts"
+}
