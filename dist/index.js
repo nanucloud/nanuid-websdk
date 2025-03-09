@@ -65,7 +65,7 @@ export class OAuthSDK {
     static getRefreshToken() {
         return localStorage.getItem(this.REFRESH_TOKEN_KEY);
     }
-    static setTokens(accessToken, refreshToken, days = 1) {
+    static setTokens(accessToken, refreshToken, days = 3650) {
         Cookies.set(this.ACCESS_TOKEN_KEY, accessToken, {
             expires: days,
             path: "/",
@@ -103,17 +103,73 @@ export class OAuthSDK {
             window.location.href = redirectUrl;
         }
     }
-    static createAuthorizedClient(token) {
+    static createAuthorizedClient(baseURL, token) {
         return __awaiter(this, void 0, void 0, function* () {
             const authToken = this.getToken(token);
-            return axios.create({
-                headers: { Authorization: `Bearer ${authToken}` },
+            const instance = axios.create({
+                baseURL,
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: authToken ? `Bearer ${authToken}` : undefined
+                },
             });
+            this.setupInterceptors(instance);
+            return instance;
         });
+    }
+    static onTokenRefreshed(token) {
+        this.refreshSubscribers.forEach(callback => callback(token));
+        this.refreshSubscribers = [];
+    }
+    static addRefreshSubscriber(callback) {
+        this.refreshSubscribers.push(callback);
+    }
+    static setupInterceptors(instance) {
+        instance.interceptors.response.use((response) => response, (error) => __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            const originalRequest = error.config;
+            const status = (_a = error.response) === null || _a === void 0 ? void 0 : _a.status;
+            if (originalRequest._retry) {
+                return Promise.reject(error);
+            }
+            if ((status === 401 || status === 403) && originalRequest) {
+                originalRequest._retry = true;
+                if (this.isRefreshing) {
+                    return new Promise((resolve) => {
+                        this.addRefreshSubscriber((token) => {
+                            originalRequest.headers = originalRequest.headers || {};
+                            originalRequest.headers['Authorization'] = `Bearer ${token}`;
+                            resolve(instance(originalRequest));
+                        });
+                    });
+                }
+                this.isRefreshing = true;
+                try {
+                    const newToken = yield this.reissueToken();
+                    if (!newToken) {
+                        this.logout();
+                        return Promise.reject(error);
+                    }
+                    originalRequest.headers = originalRequest.headers || {};
+                    originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+                    this.onTokenRefreshed(newToken);
+                    return instance(originalRequest);
+                }
+                catch (refreshError) {
+                    return Promise.reject(refreshError);
+                }
+                finally {
+                    this.isRefreshing = false;
+                }
+            }
+            return Promise.reject(error);
+        }));
     }
 }
 OAuthSDK.AUTH_BASE_URL = "https://auth.nanu.cc";
 OAuthSDK.ACCESS_TOKEN_KEY = "ACCESS";
 OAuthSDK.REFRESH_TOKEN_KEY = "REFRESH";
 OAuthSDK.TOKEN_EXPIRY_BUFFER = 300;
+OAuthSDK.isRefreshing = false;
+OAuthSDK.refreshSubscribers = [];
 export default OAuthSDK;

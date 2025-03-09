@@ -13,7 +13,7 @@
  * Provided by NANU Cloud Holdings (나누클라우드서비스) https://nanu.cc
  */
 
-import axios, { AxiosInstance } from "axios";
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from "axios";
 import Cookies from "js-cookie";
 
 interface TokenResponse {
@@ -27,11 +27,18 @@ interface TokenValidationResult {
   error?: string;
 }
 
+interface RetryConfig extends AxiosRequestConfig {
+  _retry?: boolean;
+}
+
 export class OAuthSDK {
   private static readonly AUTH_BASE_URL = "https://auth.nanu.cc";
   private static readonly ACCESS_TOKEN_KEY = "ACCESS";
   private static readonly REFRESH_TOKEN_KEY = "REFRESH";
   private static readonly TOKEN_EXPIRY_BUFFER = 300;
+  private static isRefreshing = false;
+  private static refreshSubscribers: Array<(token: string) => void> = [];
+
   private static get axiosInstance(): AxiosInstance {
     return axios.create({
       baseURL: this.AUTH_BASE_URL,
@@ -83,7 +90,7 @@ export class OAuthSDK {
   static setTokens(
     accessToken: string,
     refreshToken: string,
-    days: number = 1
+    days: number = 3650
   ): void {
     Cookies.set(this.ACCESS_TOKEN_KEY, accessToken, {
       expires: days,
@@ -126,11 +133,78 @@ export class OAuthSDK {
     }
   }
 
-  static async createAuthorizedClient(token?: string): Promise<AxiosInstance> {
+  static async createAuthorizedClient(baseURL?: string, token?: string): Promise<AxiosInstance> {
     const authToken = this.getToken(token);
-    return axios.create({
-      headers: { Authorization: `Bearer ${authToken}` },
+    const instance = axios.create({
+      baseURL,
+      headers: { 
+        "Content-Type": "application/json",
+        Authorization: authToken ? `Bearer ${authToken}` : undefined 
+      },
     });
+
+    this.setupInterceptors(instance);
+    return instance;
+  }
+
+  private static onTokenRefreshed(token: string): void {
+    this.refreshSubscribers.forEach(callback => callback(token));
+    this.refreshSubscribers = [];
+  }
+
+  private static addRefreshSubscriber(callback: (token: string) => void): void {
+    this.refreshSubscribers.push(callback);
+  }
+
+  private static setupInterceptors(instance: AxiosInstance): void {
+    instance.interceptors.response.use(
+      (response: AxiosResponse) => response,
+      async (error: AxiosError) => {
+        const originalRequest = error.config as RetryConfig;
+        const status = error.response?.status;
+
+        if (originalRequest._retry) {
+          return Promise.reject(error);
+        }
+
+        if ((status === 401 || status === 403) && originalRequest) {
+          originalRequest._retry = true;
+
+          if (this.isRefreshing) {
+            return new Promise<AxiosResponse>((resolve) => {
+              this.addRefreshSubscriber((token: string) => {
+                originalRequest.headers = originalRequest.headers || {};
+                originalRequest.headers['Authorization'] = `Bearer ${token}`;
+                resolve(instance(originalRequest));
+              });
+            });
+          }
+
+          this.isRefreshing = true;
+
+          try {
+            const newToken = await this.reissueToken();
+            
+            if (!newToken) {
+              this.logout();
+              return Promise.reject(error);
+            }
+
+            originalRequest.headers = originalRequest.headers || {};
+            originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+            this.onTokenRefreshed(newToken);
+            
+            return instance(originalRequest);
+          } catch (refreshError) {
+            return Promise.reject(refreshError);
+          } finally {
+            this.isRefreshing = false;
+          }
+        }
+
+        return Promise.reject(error);
+      }
+    );
   }
 }
 

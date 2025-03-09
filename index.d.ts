@@ -1,4 +1,4 @@
-import { AxiosInstance } from "axios";
+import { AxiosInstance, AxiosRequestConfig } from "axios";
 
 declare module "nanuid-websdk" {
   interface TokenResponse {
@@ -12,6 +12,10 @@ declare module "nanuid-websdk" {
     error?: string;
   }
 
+  interface RetryConfig extends AxiosRequestConfig {
+    _retry?: boolean;
+  }
+
   export class OAuthSDK {
     static validateToken(token?: string): TokenValidationResult;
     static getToken(token?: string): string | undefined;
@@ -23,6 +27,6 @@ declare module "nanuid-websdk" {
     ): void;
     static reissueToken(refreshToken?: string): Promise<string | null>;
     static logout(redirectUrl?: string): void;
-    static createAuthorizedClient(token?: string): Promise<AxiosInstance>;
+    static createAuthorizedClient(baseURL?: string, token?: string): Promise<AxiosInstance>;
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "nanuid-websdk",
-  "version": "1.9.7",
+  "version": "2.1.7",
   "description": "NANU.ID WEB AUTH SDK (SW Development Kit) for WEBJS/TS",
   "keywords": [
     "nanuid"
